@@ -114,7 +114,7 @@ export default function TerminalHome() {
             <span style={{ color: theme.textMute, fontSize: '10px' }}>SYS_REGIME: RISK_ON</span>
           </div>
 
-          {/* CONDITIONAL CONDITIONAL CONDITIONAL VIEW MANAGER */}
+          {/* CONDITIONAL VIEW MANAGER */}
           {activeTab === 'macro' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
               
@@ -145,15 +145,15 @@ export default function TerminalHome() {
                   <span style={{ color: theme.accent }}>INVERSE DRIVER</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0' }}>
-                  <div style={{ display: 'flex', justifyContext: 'space-between', background: theme.surface2, padding: '6px', borderRadius: '3px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', background: theme.surface2, padding: '6px', borderRadius: '3px' }}>
                     <span style={{ color: theme.textDim }}>US 10Y Nominal Yield</span>
                     <span style={{ fontWeight: 'bold', marginLeft: 'auto' }}>4.36%</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContext: 'space-between', background: theme.surface2, padding: '6px', borderRadius: '3px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', background: theme.surface2, padding: '6px', borderRadius: '3px' }}>
                     <span style={{ color: theme.textDim }}>10Y Inflation Breakeven</span>
                     <span style={{ fontWeight: 'bold', marginLeft: 'auto', color: theme.info }}>2.30%</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContext: 'space-between', background: `${theme.accent}15`, border: `1px solid ${theme.accent}33`, padding: '6px', borderRadius: '3px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', background: `${theme.accent}15`, border: `1px solid ${theme.accent}33`, padding: '6px', borderRadius: '3px' }}>
                     <span style={{ color: theme.accent, fontWeight: 'bold' }}>NET REAL YIELD</span>
                     <span style={{ fontWeight: 'bold', marginLeft: 'auto', color: theme.accent }}>2.06%</span>
                   </div>
@@ -169,7 +169,7 @@ export default function TerminalHome() {
                   <span>[M03] GLOBAL LIQUIDITY INDEX</span>
                   <span style={{ color: theme.bull }}>EXPANDING</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContext: 'space-between', padding: '8px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
                   <div>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: theme.bull }}>$89.2T</div>
                     <div style={{ color: theme.textDim, fontSize: '10px', marginTop: '2px' }}>Aggregate Central Bank Base</div>
@@ -225,7 +225,7 @@ export default function TerminalHome() {
           const isActive = activeTab === tab.id;
           return (
             <button
-              key={tab.id; }
+              key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
                 background: isActive ? `${theme.accent}0d` : 'transparent',
