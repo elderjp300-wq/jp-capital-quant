@@ -1,4 +1,5 @@
 import './globals.css';
+import { MarketProvider } from '@/context/MarketContext';
 
 export const metadata = {
   title: 'JP Terminal — Quant Dominance',
@@ -36,7 +37,11 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className="bg-black text-fg font-sans">{children}</body>
+      <body className="bg-black text-fg font-sans">
+        <MarketProvider>
+          {children}
+        </MarketProvider>
+      </body>
     </html>
   );
 }
