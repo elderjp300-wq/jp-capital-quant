@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createChart } from 'lightweight-charts';
 import { useMarket } from '@/context/MarketContext';
 
@@ -8,9 +8,15 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
   const chartContainerRef = useRef(null);
   const seriesRef = useRef(null);
   const { prices } = useMarket();
+  const [mounted, setMounted] = useState(false);
+
+  // Delay execution until client mount to eliminate Next.js hydration lag
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!mounted || !chartContainerRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -76,7 +82,7 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [symbol]);
+  }, [symbol, mounted]);
 
   useEffect(() => {
     if (!seriesRef.current || !prices[symbol]) return;
@@ -93,6 +99,14 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
       close: livePrice
     });
   }, [prices, symbol]);
+
+  if (!mounted) {
+    return (
+      <div className="w-full h-[320px] bg-[#0A0A0F] border border-[rgba(255,255,255,0.06)] rounded-2xl flex items-center justify-center font-mono text-xs text-mute animate-pulse">
+        Initializing Canvas GPU...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-[#0A0A0F] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4">
