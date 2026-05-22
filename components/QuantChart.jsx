@@ -12,7 +12,6 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // 1. Initialize the GPU-Accelerated Canvas Chart
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 320,
@@ -27,21 +26,17 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
         horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
       },
       crosshair: {
-        mode: 1, // Magnet mode
+        mode: 1,
         vertLine: { color: '#3B82F6', width: 1, style: 2 },
         horzLine: { color: '#3B82F6', width: 1, style: 2 },
       },
-      rightPriceScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-      },
+      rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.06)' },
       timeScale: {
         borderColor: 'rgba(255, 255, 255, 0.06)',
         timeVisible: true,
-        secondsVisible: false,
       },
     });
 
-    // 2. Configure Candlestick styling to match obsidian-terminal theme
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#22C55E',
       downColor: '#EF4444',
@@ -52,13 +47,12 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
 
     seriesRef.current = candlestickSeries;
 
-    // 3. Generate seed historical baseline bars (Simulated history data)
     const now = Math.floor(Date.now() / 1000);
     const initialData = [];
     let basePrice = symbol === 'EURUSD' ? 1.08500 : 2340.00;
 
     for (let i = 100; i > 0; i--) {
-      const time = now - i * 60; // 1-minute intervals
+      const time = now - i * 60;
       const open = basePrice + (Math.random() - 0.5) * (symbol === 'EURUSD' ? 0.0005 : 2.0);
       const close = open + (Math.random() - 0.5) * (symbol === 'EURUSD' ? 0.0005 : 2.0);
       const high = Math.max(open, close) + Math.random() * (symbol === 'EURUSD' ? 0.0002 : 1.0);
@@ -71,7 +65,6 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
     candlestickSeries.setData(initialData);
     chart.timeScale().fitContent();
 
-    // 4. Handle mobile layout/orientation resize logic
     const handleResize = () => {
       if (chartContainerRef.current) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -79,27 +72,22 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
     };
     window.addEventListener('resize', handleResize);
 
-    // Keep reference to chart to clean up on unmount
-    const currentContainer = chartContainerRef.current;
-
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
   }, [symbol]);
 
-  // 5. Intercept real-time WebSocket tick streams and feed them dynamically into the current candle
   useEffect(() => {
     if (!seriesRef.current || !prices[symbol]) return;
     
     const livePrice = prices[symbol].bid;
     const currentTime = Math.floor(Date.now() / 1000);
-    const roundedTime = currentTime - (currentTime % 60); // Snap to latest minute candle
+    const roundedTime = currentTime - (currentTime % 60);
 
-    // Update current active candlestick array entry live
     seriesRef.current.update({
       time: roundedTime,
-      open: livePrice, // Simply using real-time values to feed trailing mutations
+      open: livePrice,
       high: livePrice,
       low: livePrice,
       close: livePrice
