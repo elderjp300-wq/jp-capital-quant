@@ -50,7 +50,7 @@ export default function Page() {
         <div key={tab} className="screen-fade">
           <Screen />
         </div>
-        <BottomNav active={tab} onChange={setTab} />
+        <BottomNav currentTab={tab} setTab={setTab} />
       </div>
     </div>
   );
