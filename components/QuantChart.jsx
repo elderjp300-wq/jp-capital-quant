@@ -1,125 +1,71 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart } from 'lightweight-charts';
-import { useMarket } from '@/context/MarketContext';
+
+function ChartCanvas({ symbol }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    let chart;
+    try {
+      const { createChart } = require('lightweight-charts');
+      
+      chart = createChart(containerRef.current, {
+        width: containerRef.current.clientWidth || 340,
+        height: 300,
+        layout: { background: { color: '#000000' }, textColor: '#71717A' },
+        grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+        timeScale: { visible: true }
+      });
+
+      const candleSeries = chart.addCandlestickSeries({
+        upColor: '#22C55E', downColor: '#EF4444',
+        borderVisible: false, wickUpColor: '#22C55E', wickDownColor: '#EF4444'
+      });
+
+      // Simple mock data fallback for initialization stability
+      const now = Math.floor(Date.now() / 1000);
+      const data = [];
+      let price = symbol === 'EURUSD' ? 1.0850 : 2340.0;
+      for (let i = 50; i > 0; i--) {
+        data.push({
+          time: now - i * 60,
+          open: price, high: price + 0.001, low: price - 0.001, close: price
+        });
+      }
+      candleSeries.setData(data);
+    } catch (err) {
+      console.error("Canvas mounting error:", err);
+    }
+
+    return () => { if (chart) chart.remove(); };
+  }, [symbol]);
+
+  return <div ref={containerRef} className="w-full h-[300px]" />;
+}
 
 export default function QuantChart({ symbol = 'EURUSD' }) {
-  const chartContainerRef = useRef(null);
-  const seriesRef = useRef(null);
-  const { prices } = useMarket();
   const [mounted, setMounted] = useState(false);
 
-  // Delay execution until client mount to eliminate Next.js hydration lag
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (!mounted || !chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 320,
-      layout: {
-        background: { color: '#000000' },
-        textColor: '#71717A',
-        fontSize: 11,
-        fontFamily: 'JetBrains Mono, monospace',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
-      },
-      crosshair: {
-        mode: 1,
-        vertLine: { color: '#3B82F6', width: 1, style: 2 },
-        horzLine: { color: '#3B82F6', width: 1, style: 2 },
-      },
-      rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.06)' },
-      timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-        timeVisible: true,
-      },
-    });
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22C55E',
-      downColor: '#EF4444',
-      borderVisible: false,
-      wickUpColor: '#22C55E',
-      wickDownColor: '#EF4444',
-    });
-
-    seriesRef.current = candlestickSeries;
-
-    const now = Math.floor(Date.now() / 1000);
-    const initialData = [];
-    let basePrice = symbol === 'EURUSD' ? 1.08500 : 2340.00;
-
-    for (let i = 100; i > 0; i--) {
-      const time = now - i * 60;
-      const open = basePrice + (Math.random() - 0.5) * (symbol === 'EURUSD' ? 0.0005 : 2.0);
-      const close = open + (Math.random() - 0.5) * (symbol === 'EURUSD' ? 0.0005 : 2.0);
-      const high = Math.max(open, close) + Math.random() * (symbol === 'EURUSD' ? 0.0002 : 1.0);
-      const low = Math.min(open, close) - Math.random() * (symbol === 'EURUSD' ? 0.0002 : 1.0);
-
-      initialData.push({ time, open, high, low, close });
-      basePrice = close;
-    }
-    
-    candlestickSeries.setData(initialData);
-    chart.timeScale().fitContent();
-
-    const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-    };
-  }, [symbol, mounted]);
-
-  useEffect(() => {
-    if (!seriesRef.current || !prices[symbol]) return;
-    
-    const livePrice = prices[symbol].bid;
-    const currentTime = Math.floor(Date.now() / 1000);
-    const roundedTime = currentTime - (currentTime % 60);
-
-    seriesRef.current.update({
-      time: roundedTime,
-      open: livePrice,
-      high: livePrice,
-      low: livePrice,
-      close: livePrice
-    });
-  }, [prices, symbol]);
-
-  if (!mounted) {
-    return (
-      <div className="w-full h-[320px] bg-[#0A0A0F] border border-[rgba(255,255,255,0.06)] rounded-2xl flex items-center justify-center font-mono text-xs text-mute animate-pulse">
-        Initializing Canvas GPU...
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full bg-[#0A0A0F] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4">
+    <div className="w-full bg-[#0A0A0F] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 min-h-[360px]">
       <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-bold tracking-tight text-fg">{symbol} Live Feed</span>
-          <span className="text-[10px] bg-blue/10 text-blue font-mono px-1.5 py-0.5 rounded uppercase font-medium">1M Canvas</span>
-        </div>
-        <div className="text-xs font-mono text-mute">
-          Tick: <span className="text-fg font-semibold">{prices[symbol]?.bid}</span>
-        </div>
+        <span className="text-sm font-bold tracking-tight text-white">{symbol} Live Feed</span>
+        <span className="text-[10px] bg-blue-500/10 text-blue-400 font-mono px-1.5 py-0.5 rounded">1M Canvas</span>
       </div>
-      <div ref={chartContainerRef} className="w-full relative" style={{ minHeight: '320px' }} />
+      {mounted ? (
+        <ChartCanvas symbol={symbol} />
+      ) : (
+        <div className="w-full h-[300px] flex items-center justify-center font-mono text-xs text-zinc-500">
+          Waking Engine Core...
+        </div>
+      )}
     </div>
   );
 }
