@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMarket } from '@/context/MarketContext';
 
-// 1. Isolate the canvas into a pure client-side container
 function ChartContainer({ symbol, prices }) {
   const containerRef = useRef(null);
   const seriesRef = useRef(null);
@@ -13,68 +12,74 @@ function ChartContainer({ symbol, prices }) {
     if (!containerRef.current) return;
 
     let chart;
-    // 2. Inline require ensures the library is NEVER evaluated by the server
-    const { createChart } = require('lightweight-charts');
+    let active = true;
 
-    chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth || 340,
-      height: 300,
-      layout: {
-        background: { type: 'solid', color: '#0A0A0F' },
-        textColor: '#71717A',
-        fontSize: 10,
-        fontFamily: 'JetBrains Mono, monospace',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.02)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.02)' },
-      },
-      crosshair: {
-        mode: 1,
-        vertLine: { color: '#3B82F6', width: 1, style: 2 },
-        horzLine: { color: '#3B82F6', width: 1, style: 2 },
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-        entireTextOnly: true,
-      },
-      timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-        timeVisible: true,
-      },
-    });
+    // Asynchronously fetch the modern ES Module path strictly inside the browser layer
+    import('lightweight-charts')
+      .then(({ createChart }) => {
+        if (!active || !containerRef.current) return;
 
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: '#22C55E',
-      downColor: '#EF4444',
-      borderVisible: false,
-      wickUpColor: '#22C55E',
-      wickDownColor: '#EF4444',
-    });
+        chart = createChart(containerRef.current, {
+          width: containerRef.current.clientWidth || 340,
+          height: 300,
+          layout: {
+            background: { type: 'solid', color: '#0A0A0F' },
+            textColor: '#71717A',
+            fontSize: 10,
+            fontFamily: 'JetBrains Mono, monospace',
+          },
+          grid: {
+            vertLines: { color: 'rgba(255, 255, 255, 0.02)' },
+            horzLines: { color: 'rgba(255, 255, 255, 0.02)' },
+          },
+          crosshair: {
+            mode: 1,
+            vertLine: { color: '#3B82F6', width: 1, style: 2 },
+            horzLine: { color: '#3B82F6', width: 1, style: 2 },
+          },
+          rightPriceScale: {
+            borderColor: 'rgba(255, 255, 255, 0.06)',
+            entireTextOnly: true,
+          },
+          timeScale: {
+            borderColor: 'rgba(255, 255, 255, 0.06)',
+            timeVisible: true,
+          },
+        });
 
-    seriesRef.current = candleSeries;
-    chartRef.current = chart;
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#22C55E',
+          downColor: '#EF4444',
+          borderVisible: false,
+          wickUpColor: '#22C55E',
+          wickDownColor: '#EF4444',
+        });
 
-    // Generate historical baseline structure
-    const now = Math.floor(Date.now() / 1000);
-    const data = [];
-    let currentPrice = symbol === 'EURUSD' ? 1.08540 : 2342.50;
+        seriesRef.current = candleSeries;
+        chartRef.current = chart;
 
-    for (let i = 60; i > 0; i--) {
-      const time = now - i * 60;
-      const volatility = symbol === 'EURUSD' ? 0.00015 : 0.8;
-      const change = (Math.random() - 0.5) * volatility;
-      const open = currentPrice;
-      const close = currentPrice + change;
-      const high = Math.max(open, close) + Math.random() * (volatility * 0.3);
-      const low = Math.min(open, close) - Math.random() * (volatility * 0.3);
+        // Populate baseline historical context waves
+        const now = Math.floor(Date.now() / 1000);
+        const data = [];
+        let currentPrice = symbol === 'EURUSD' ? 1.08540 : 2342.50;
 
-      data.push({ time, open, high, low, close });
-      currentPrice = close;
-    }
+        for (let i = 60; i > 0; i--) {
+          const time = now - i * 60;
+          const volatility = symbol === 'EURUSD' ? 0.00015 : 0.8;
+          const change = (Math.random() - 0.5) * volatility;
+          const open = currentPrice;
+          const close = currentPrice + change;
+          const high = Math.max(open, close) + Math.random() * (volatility * 0.3);
+          const low = Math.min(open, close) - Math.random() * (volatility * 0.3);
 
-    candleSeries.setData(data);
-    chart.timeScale().fitContent();
+          data.push({ time, open, high, low, close });
+          currentPrice = close;
+        }
+
+        candleSeries.setData(data);
+        chart.timeScale().fitContent();
+      })
+      .catch((err) => console.error("Webpack dynamic bundle stream failed:", err));
 
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
@@ -84,12 +89,13 @@ function ChartContainer({ symbol, prices }) {
     window.addEventListener('resize', handleResize);
 
     return () => {
+      active = false;
       window.removeEventListener('resize', handleResize);
       if (chart) chart.remove();
     };
   }, [symbol]);
 
-  // Handle real-time price updates from MarketContext
+  // Synchronize Live WebSockets context data with the modern canvas reference
   useEffect(() => {
     if (!seriesRef.current || !prices?.[symbol]) return;
 
