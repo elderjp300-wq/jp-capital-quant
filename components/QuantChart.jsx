@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart } from 'lightweight-charts';
 import { useMarket } from '@/context/MarketContext';
 
-function ChartCanvas({ symbol, prices }) {
+// 1. Isolate the canvas into a pure client-side container
+function ChartContainer({ symbol, prices }) {
   const containerRef = useRef(null);
   const seriesRef = useRef(null);
   const chartRef = useRef(null);
@@ -12,8 +12,11 @@ function ChartCanvas({ symbol, prices }) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Initialize the GPU Canvas with the exact terminal obsidian theme
-    const chart = createChart(containerRef.current, {
+    let chart;
+    // 2. Inline require ensures the library is NEVER evaluated by the server
+    const { createChart } = require('lightweight-charts');
+
+    chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth || 340,
       height: 300,
       layout: {
@@ -23,8 +26,8 @@ function ChartCanvas({ symbol, prices }) {
         fontFamily: 'JetBrains Mono, monospace',
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.03)' },
+        vertLines: { color: 'rgba(255, 255, 255, 0.02)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.02)' },
       },
       crosshair: {
         mode: 1,
@@ -38,11 +41,9 @@ function ChartCanvas({ symbol, prices }) {
       timeScale: {
         borderColor: 'rgba(255, 255, 255, 0.06)',
         timeVisible: true,
-        secondsVisible: false,
       },
     });
 
-    // 2. Configure Institutional Candlestick Colors
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#22C55E',
       downColor: '#EF4444',
@@ -54,20 +55,19 @@ function ChartCanvas({ symbol, prices }) {
     seriesRef.current = candleSeries;
     chartRef.current = chart;
 
-    // 3. Generate Simulated Structural Market Waves (Instead of flat lines)
+    // Generate historical baseline structure
     const now = Math.floor(Date.now() / 1000);
     const data = [];
     let currentPrice = symbol === 'EURUSD' ? 1.08540 : 2342.50;
 
-    for (let i = 80; i > 0; i--) {
+    for (let i = 60; i > 0; i--) {
       const time = now - i * 60;
       const volatility = symbol === 'EURUSD' ? 0.00015 : 0.8;
-      
       const change = (Math.random() - 0.5) * volatility;
       const open = currentPrice;
       const close = currentPrice + change;
-      const high = Math.max(open, close) + Math.random() * (volatility * 0.4);
-      const low = Math.min(open, close) - Math.random() * (volatility * 0.4);
+      const high = Math.max(open, close) + Math.random() * (volatility * 0.3);
+      const low = Math.min(open, close) - Math.random() * (volatility * 0.3);
 
       data.push({ time, open, high, low, close });
       currentPrice = close;
@@ -76,7 +76,6 @@ function ChartCanvas({ symbol, prices }) {
     candleSeries.setData(data);
     chart.timeScale().fitContent();
 
-    // Responsive window observer for mobile view orientation changes
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -86,11 +85,11 @@ function ChartCanvas({ symbol, prices }) {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
+      if (chart) chart.remove();
     };
   }, [symbol]);
 
-  // 4. Live Tick Mutator: Feeds live websocket prices directly into the active candle
+  // Handle real-time price updates from MarketContext
   useEffect(() => {
     if (!seriesRef.current || !prices?.[symbol]) return;
 
@@ -130,12 +129,12 @@ export default function QuantChart({ symbol = 'EURUSD' }) {
           </span>
         </div>
         <div className="text-xs font-mono text-zinc-400">
-          Price: <span className="text-white font-bold transition-all duration-700">{activeBid ? activeBid.toFixed(symbol === 'EURUSD' ? 5 : 2) : 'Connecting...'}</span>
+          Price: <span className="text-white font-bold">{activeBid ? activeBid.toFixed(symbol === 'EURUSD' ? 5 : 2) : 'Connecting...'}</span>
         </div>
       </div>
       
       {mounted ? (
-        <ChartCanvas symbol={symbol} prices={prices} />
+        <ChartContainer symbol={symbol} prices={prices} />
       ) : (
         <div className="w-full h-[300px] flex items-center justify-center font-mono text-xs text-zinc-500">
           Waking Engine Core...
