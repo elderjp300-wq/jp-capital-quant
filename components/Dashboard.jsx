@@ -42,85 +42,62 @@ export function AIBriefCard() {
 
 /* ───────── Risk Appetite gauge ───────── */
 export function RiskAppetiteCard() {
-  const value = 62;
+  // VIXCLS (volatility index), BAMLH0A0HYM2 (HY OAS, %)
+  const { data } = useFred('VIXCLS,BAMLH0A0HYM2', 1);
+  const pick = (id, fb) => {
+    const arr = data && data[id];
+    return Array.isArray(arr) && arr.length ? arr[0].value : fb;
+  };
+  const vix = pick('VIXCLS', 16.4);
+  const hyPct = pick('BAMLH0A0HYM2', 3.42); // percent -> bps below
+  const hyBps = Math.round(hyPct * 100);
+
+  // Map VIX -> 0..100 risk-appetite score (low VIX = risk-on/high score)
+  const scoreFromVix = (x) => {
+    if (x <= 12) return 90;
+    if (x <= 20) return 90 - ((x - 12) / 8) * 35;   // 90 -> 55
+    if (x <= 35) return 55 - ((x - 20) / 15) * 40;  // 55 -> 15
+    return 15;
+  };
+  const value = Math.max(2, Math.min(98, Math.round(scoreFromVix(vix))));
+
+  const label = value >= 66 ? 'Risk-On' : value >= 40 ? 'Neutral' : 'Risk-Off';
+  const labelCls = value >= 66 ? 'pill-green' : value >= 40 ? 'pill-orange' : 'pill-red';
+  const vixCls = vix <= 20 ? 'text-green' : vix <= 30 ? 'text-orange' : 'text-red';
+
   // Half-circle gauge geometry
   const W = 280, H = 160, R = 110, cx = W / 2, cy = 140;
-  const angleFor = (v) => Math.PI * (1 - v / 100); // 0→π (left to right)
+  const angleFor = (v) => Math.PI * (1 - v / 100);
   const pt = (v, r = R) => {
     const a = angleFor(v);
     return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
   };
-  // Arc helper: large=0, sweep=1
   const arcPath = (from, to, r = R) => {
     const [x1, y1] = pt(from, r);
     const [x2, y2] = pt(to, r);
-    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(
-      1,
-    )} ${y2.toFixed(1)}`;
+    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
   };
 
   const [needleX, needleY] = pt(value, R - 6);
-  const knobX = needleX;
-  const knobY = needleY;
 
   return (
     <Card
       title="Risk Appetite"
-      right={<span className="pill pill-green">Mild Risk-On</span>}
+      right={<span className={`pill ${labelCls}`}>{label}</span>}
     >
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block">
-          {/* zone arcs (navy 0-30, red 30-70, orange 70-100) */}
-          <path
-            d={arcPath(0, 30)}
-            stroke="#1B2540"
-            strokeWidth="22"
-            fill="none"
-            strokeLinecap="butt"
-          />
-          <path
-            d={arcPath(30, 70)}
-            stroke="#DC2626"
-            strokeWidth="22"
-            fill="none"
-            strokeLinecap="butt"
-          />
-          <path
-            d={arcPath(70, 100)}
-            stroke="#F59E0B"
-            strokeWidth="22"
-            fill="none"
-            strokeLinecap="butt"
-          />
+          <path d={arcPath(0, 30)} stroke="#1B2540" strokeWidth="22" fill="none" strokeLinecap="butt" />
+          <path d={arcPath(30, 70)} stroke="#DC2626" strokeWidth="22" fill="none" strokeLinecap="butt" />
+          <path d={arcPath(70, 100)} stroke="#F59E0B" strokeWidth="22" fill="none" strokeLinecap="butt" />
 
-          {/* glow under needle tip */}
           <circle cx={needleX} cy={needleY} r="14" fill="rgba(255,255,255,0.18)" />
-
-          {/* needle */}
-          <line
-            x1={cx}
-            y1={cy}
-            x2={knobX}
-            y2={knobY}
-            stroke="#FAFAFA"
-            strokeWidth="5"
-            strokeLinecap="round"
-          />
-          <circle cx={knobX} cy={knobY} r="6" fill="#FAFAFA" />
+          <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#FAFAFA" strokeWidth="5" strokeLinecap="round" />
+          <circle cx={needleX} cy={needleY} r="6" fill="#FAFAFA" />
           <circle cx={cx} cy={cy} r="10" fill="#FAFAFA" />
           <circle cx={cx} cy={cy} r="4" fill="#0B0D12" />
 
-          {/* big value */}
-          <text
-            x={cx}
-            y={cy - 8}
-            textAnchor="middle"
-            fill="#FAFAFA"
-            className="num"
-            fontSize="36"
-            fontWeight="700"
-            letterSpacing="-1"
-          >
+          <text x={cx} y={cy - 14} textAnchor="middle" fill="#FAFAFA" className="num" fontSize="34" fontWeight="700" letterSpacing="-1">
             {value}
           </text>
         </svg>
@@ -129,11 +106,11 @@ export function RiskAppetiteCard() {
       <div className="grid grid-cols-2 gap-3 mt-3">
         <div className="card p-4 text-center">
           <div className="label">VIX</div>
-          <div className="num text-[22px] text-green font-bold mt-1">16.4</div>
+          <div className={`num text-[22px] font-bold mt-1 ${vixCls}`}>{fmt(vix, 1)}</div>
         </div>
         <div className="card p-4 text-center">
           <div className="label">HY Spreads</div>
-          <div className="num text-[22px] text-fg font-bold mt-1">342bps</div>
+          <div className="num text-[22px] text-fg font-bold mt-1">{hyBps}bps</div>
         </div>
       </div>
     </Card>
