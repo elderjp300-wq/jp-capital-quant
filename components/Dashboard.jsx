@@ -434,15 +434,29 @@ export function DXYStrengthCard() {
 
 /* ───────── Liquidity & Bal Sheet ───────── */
 export function LiquidityCard() {
+  // WALCL (Fed total assets, $mn), SOFR (%), WTREGEN (TGA, $mn)
+  const { data, error } = useFred('WALCL,SOFR,WTREGEN', 1);
+  const v = (id, fb) => {
+    const arr = data && data[id];
+    return Array.isArray(arr) && arr.length ? arr[0].value : fb;
+  };
+  const walcl = v('WALCL', 7120000);   // $mn
+  const sofr = v('SOFR', 5.31);        // %
+  const tga = v('WTREGEN', 750000);    // $mn
+
+  const assetsT = (walcl / 1_000_000).toFixed(2); // -> $T
+  const tgaB = Math.round(tga / 1000);            // -> $B
+
+  // QT pace is Fed policy guidance, not a daily series. Manual knob —
+  // update only when the Fed changes the runoff cap.
+  const qtPace = '-$60B';
+
   const W = 320, H = 60;
-  // gently descending step line for "tightening"
   const pts = [
     [4, 28], [40, 28], [56, 30], [92, 30], [108, 32], [144, 32],
     [160, 34], [196, 34], [212, 36], [248, 36], [264, 38], [316, 38],
   ];
-  const stepPath = pts
-    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x} ${y}`)
-    .join(' ');
+  const stepPath = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ');
 
   return (
     <Card
@@ -457,21 +471,21 @@ export function LiquidityCard() {
       <div className="grid grid-cols-2 gap-y-5 gap-x-4">
         <div>
           <div className="label">Fed Total Assets</div>
-          <div className="big-num text-[28px] mt-1.5">$7.12T</div>
+          <div className="big-num text-[28px] mt-1.5">${assetsT}T</div>
         </div>
         <div>
           <div className="label">QT Pace</div>
           <div className="big-num text-[28px] mt-1.5 text-red">
-            -$60B<span className="text-mute text-[13px]">/mo</span>
+            {qtPace}<span className="text-mute text-[13px]">/mo</span>
           </div>
         </div>
         <div>
           <div className="label">TGA Balance</div>
-          <div className="big-num text-[28px] mt-1.5">$750B</div>
+          <div className="big-num text-[28px] mt-1.5">${tgaB}B</div>
         </div>
         <div>
           <div className="label">SOFR</div>
-          <div className="big-num text-[28px] mt-1.5">5.31%</div>
+          <div className="big-num text-[28px] mt-1.5">{fmt(sofr, 2)}%</div>
         </div>
       </div>
 
