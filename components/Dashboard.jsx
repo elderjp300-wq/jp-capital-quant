@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { fmt, Card, Reveal, I } from '@/components/lib';
 import { useFred } from '@/components/useFred';
+import { useBrief } from '@/components/useBrief';
 
 // Dashboard screen — main landing.
 // Cards: AI Brief, Risk Appetite, Fed Funds/OIS, US Yield Curve,
@@ -10,6 +11,14 @@ import { useFred } from '@/components/useFred';
 
 /* ───────── AI Brief ───────── */
 export function AIBriefCard() {
+  const brief = useBrief();
+  const b = brief && brief.brief ? brief.brief : null;
+  const label = b ? b.label : 'JP CAPITAL DESK';
+  const body = b ? b.body : 'Loading the weekly read…';
+  const keyRisk = b ? b.keyRisk : '';
+  const confidence = b ? b.confidence : '—';
+  const updated = brief ? brief.updated : '';
+
   return (
     <section className="card-accent p-5">
       <header className="flex items-center gap-3 mb-4">
@@ -17,24 +26,25 @@ export function AIBriefCard() {
           <I.spark className="w-5 h-5" />
         </span>
         <span className="text-blue font-semibold tracking-[0.08em] text-[13px]">
-          POWERED BY <span className="text-blue">JP CAPITAL AI</span>
+          {label}
         </span>
       </header>
 
       <p className="text-fg2 text-[16.5px] leading-[1.55]">
-        The Fed remains on hold as core PCE moderates toward 2.4%. DXY weakness is
-        creating a tailwind for commodities and EM. Yield curve normalization
-        suggests the hiking cycle is behind us.{' '}
-        <span className="text-orange font-semibold">Key risk:</span>{' '}
-        <span className="text-fg2">
-          hotter-than-expected NFP could reprice terminal rate expectations and shock
-          short-end yields.
-        </span>
+        {body}
+        {keyRisk ? (
+          <>
+            {' '}<span className="text-orange font-semibold">Key risk:</span>{' '}
+            <span className="text-fg2">{keyRisk}</span>
+          </>
+        ) : null}
       </p>
 
       <div className="flex items-center justify-between mt-5">
-        <span className="text-mute text-[13px]">Updated 4 mins ago</span>
-        <span className="pill pill-ghost">Confidence: High</span>
+        <span className="text-mute text-[13px]">
+          {updated ? `Updated ${updated}` : ''}
+        </span>
+        <span className="pill pill-ghost">Confidence: {confidence}</span>
       </div>
     </section>
   );
@@ -119,117 +129,77 @@ export function RiskAppetiteCard() {
 
 /* ───────── Fed Funds / OIS line chart ───────── */
 export function FedFundsCard() {
-  // Implied Fed funds path through meetings
-  const path = [
-    { d: 'Current', r: 5.375, status: null },
-    { d: 'Jun',     r: 5.375, status: 'hold' },
-    { d: 'Jul',     r: 5.31,  status: 'hold' },
-    { d: 'Sep',     r: 5.04,  status: 'cut' },
-    { d: 'Nov',     r: 4.79,  status: 'cut' },
-    { d: 'Dec',     r: 4.50,  status: 'cut' },
-  ];
+  const brief = useBrief();
+  const ff = brief && brief.fedFunds ? brief.fedFunds : null;
+
+  const range = ff ? ff.range : '3.50-3.75%';
+  const pillTxt = ff ? ff.pill : 'Pause';
+  const subtitle = ff ? ff.subtitle : '';
+  const markers = ff ? ff.markers : [];
+  const path = ff && ff.curve ? ff.curve : [{ d: 'Now', r: 3.625 }];
 
   const W = 340, H = 170, padL = 38, padR = 12, padT = 14, padB = 26;
-  const minY = 4.30, maxY = 5.53;
-  const xs = (i) => padL + (i * (W - padL - padR)) / (path.length - 1);
+  const rs = path.map((p) => p.r);
+  const lo = Math.min(...rs), hi = Math.max(...rs);
+  const pad = (hi - lo) * 0.3 || 0.2;
+  const minY = lo - pad, maxY = hi + pad;
+  const xs = (i) => padL + (i * (W - padL - padR)) / Math.max(1, path.length - 1);
   const ys = (v) => padT + (1 - (v - minY) / (maxY - minY)) * (H - padT - padB);
-
   const dStr = path
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xs(i).toFixed(1)} ${ys(p.r).toFixed(1)}`)
     .join(' ');
+  const ticks = [maxY, (maxY + minY) / 2, minY];
 
   return (
-    <Card
-      title="Fed Funds / OIS"
-      right={<span className="pill pill-blue">Pricing 2 Cuts</span>}
-    >
-      <div className="big-num text-[42px] leading-none">5.25-5.50%</div>
-      <div className="text-mute text-[14px] mt-2">
-        Terminal rate expected Dec 2025: 4.50%
-      </div>
+    <Card title="Fed Funds / OIS" right={<span className="pill pill-blue">{pillTxt}</span>}>
+      <div className="big-num text-[42px] leading-none">{range}</div>
+      <div className="text-mute text-[14px] mt-2">{subtitle}</div>
 
       {/* meeting markers */}
       <div className="grid grid-cols-3 gap-3 mt-5 mb-2">
-        {[
-          { d: 'Jun 12', a: 'Hold', dot: 'orange', tone: 'fg' },
-          { d: 'Jul 31', a: 'Hold', dot: 'orange', tone: 'fg' },
-          { d: 'Sep 18', a: '-25bps', dot: 'green', tone: 'green' },
-        ].map((m, i) => (
-          <div key={i} className="flex flex-col items-center">
-            <span
-              className="w-2.5 h-2.5 rounded-full mb-2"
-              style={{
-                background: m.dot === 'orange' ? '#F59E0B' : '#22C55E',
-                boxShadow:
-                  m.dot === 'orange'
-                    ? '0 0 8px rgba(245,158,11,0.6)'
-                    : '0 0 8px rgba(34,197,94,0.6)',
-              }}
-            ></span>
-            <span className="text-mute text-[13px] num">{m.d}</span>
-            <span
-              className={`text-[14px] font-semibold mt-1 num ${
-                m.tone === 'green' ? 'text-green' : 'text-fg'
-              }`}
-            >
-              {m.a}
-            </span>
-          </div>
-        ))}
+        {markers.map((m, i) => {
+          const isCut = m.tone === 'cut';
+          return (
+            <div key={i} className="flex flex-col items-center">
+              <span
+                className="w-2.5 h-2.5 rounded-full mb-2"
+                style={{
+                  background: isCut ? '#22C55E' : '#F59E0B',
+                  boxShadow: isCut
+                    ? '0 0 8px rgba(34,197,94,0.6)'
+                    : '0 0 8px rgba(245,158,11,0.6)',
+                }}
+              ></span>
+              <span className="text-mute text-[13px] num">{m.date}</span>
+              <span
+                className={`text-[14px] font-semibold mt-1 num ${
+                  isCut ? 'text-green' : 'text-fg'
+                }`}
+              >
+                {m.action}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* line chart */}
       <div className="mt-2">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block">
-          {/* y-axis labels */}
-          {[5.53, 5.00, 4.30].map((v) => (
+          {ticks.map((v) => (
             <g key={v}>
-              <text
-                x={padL - 6}
-                y={ys(v) + 3.5}
-                textAnchor="end"
-                fontSize="11"
-                fill="#71717A"
-                className="num"
-              >
+              <text x={padL - 6} y={ys(v) + 3.5} textAnchor="end" fontSize="11" fill="#71717A" className="num">
                 {v.toFixed(2)}
               </text>
-              <line
-                x1={padL}
-                x2={W - padR}
-                y1={ys(v)}
-                y2={ys(v)}
-                stroke="rgba(255,255,255,0.04)"
-              />
+              <line x1={padL} x2={W - padR} y1={ys(v)} y2={ys(v)} stroke="rgba(255,255,255,0.04)" />
             </g>
           ))}
-
-          {/* line */}
           <path d={dStr} fill="none" stroke="#3B82F6" strokeWidth="2.2" strokeLinejoin="round" />
-
-          {/* dots */}
           {path.map((p, i) => (
-            <circle
-              key={i}
-              cx={xs(i)}
-              cy={ys(p.r)}
-              r="3.6"
-              fill="#0B0D12"
-              stroke="#3B82F6"
-              strokeWidth="2"
-            />
+            <circle key={i} cx={xs(i)} cy={ys(p.r)} r="3.6" fill="#0B0D12" stroke="#3B82F6" strokeWidth="2" />
           ))}
-
-          {/* x labels */}
           {path.map((p, i) => (
-            <text
-              key={i}
-              x={xs(i)}
-              y={H - 6}
-              textAnchor="middle"
-              fontSize="12"
-              fill="#71717A"
-            >
+            <text key={i} x={xs(i)} y={H - 6} textAnchor="middle" fontSize="12" fill="#71717A">
               {p.d}
             </text>
           ))}
@@ -500,9 +470,10 @@ export function LiquidityCard() {
 
 /* ───────── 30D Rolling Correlation matrix ───────── */
 export function CorrelationCard() {
-  const syms = ['SPX', 'US10Y', 'DXY', 'GOLD', 'BTC'];
-  // Symmetric matrix
-  const M = [
+  const brief = useBrief();
+  const c = brief && brief.correlation ? brief.correlation : null;
+  const syms = c ? c.symbols : ['SPX', 'US10Y', 'DXY', 'GOLD', 'BTC'];
+  const M = c ? c.matrix : [
     [null, -0.45, -0.65, 0.35, 0.72],
     [-0.45, null, 0.55, -0.25, -0.30],
     [-0.65, 0.55, null, -0.80, -0.55],
@@ -524,12 +495,9 @@ export function CorrelationCard() {
           <thead>
             <tr>
               <th className="w-12"></th>
-              {syms.map((s) => (
-                <th
-                  key={s}
-                  className="num text-mute font-medium text-[12px] py-2 text-center"
-                >
-                  {s}
+              {syms.map((sym) => (
+                <th key={sym} className="num text-mute font-medium text-[12px] py-2 text-center">
+                  {sym}
                 </th>
               ))}
             </tr>
@@ -543,15 +511,8 @@ export function CorrelationCard() {
                 {syms.map((_col, j) => {
                   const v = M[i][j];
                   return (
-                    <td
-                      key={j}
-                      className="border-t border-l border-line p-0"
-                    >
-                      <div
-                        className={`h-11 grid place-items-center num text-[13px] font-semibold ${cellCls(
-                          v,
-                        )}`}
-                      >
+                    <td key={j} className="border-t border-l border-line p-0">
+                      <div className={`h-11 grid place-items-center num text-[13px] font-semibold ${cellCls(v)}`}>
                         {v === null ? '—' : v > 0 ? fmt(v, 2) : `-${fmt(Math.abs(v), 2)}`}
                       </div>
                     </td>

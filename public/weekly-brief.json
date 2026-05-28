@@ -1,0 +1,37 @@
+{
+  "updated": "2026-05-28",
+  "brief": {
+    "label": "JP CAPITAL DESK",
+    "body": "The Fed is holding at 3.50-3.75% as inflation stays above target. Late-cycle easing has paused; the next cut is leaning toward September with the curve normalizing. DXY soft, giving room to commodities and EM.",
+    "keyRisk": "A hot NFP or oil-driven inflation surprise could push the first cut later and lift the short end.",
+    "confidence": "Medium"
+  },
+  "fedFunds": {
+    "range": "3.50-3.75%",
+    "pill": "Pause - Easing Bias",
+    "subtitle": "Market leans first cut ~Sep; drift toward ~3.0% by year-end",
+    "markers": [
+      { "date": "Jun 17", "action": "Hold", "tone": "hold" },
+      { "date": "Jul 29", "action": "Hold", "tone": "hold" },
+      { "date": "Sep 16", "action": "-25bps", "tone": "cut" }
+    ],
+    "curve": [
+      { "d": "Now", "r": 3.625 },
+      { "d": "Jun", "r": 3.625 },
+      { "d": "Jul", "r": 3.625 },
+      { "d": "Sep", "r": 3.375 },
+      { "d": "Oct", "r": 3.25 },
+      { "d": "Dec", "r": 3.125 }
+    ]
+  },
+  "correlation": {
+    "symbols": ["SPX", "US10Y", "DXY", "GOLD", "BTC"],
+    "matrix": [
+      [null, -0.45, -0.65, 0.35, 0.72],
+      [-0.45, null, 0.55, -0.25, -0.30],
+      [-0.65, 0.55, null, -0.80, -0.55],
+      [0.35, -0.25, -0.80, null, 0.45],
+      [0.72, -0.30, -0.55, 0.45, null]
+    ]
+  }
+}
