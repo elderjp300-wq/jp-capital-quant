@@ -412,7 +412,7 @@ export function DXYStrengthCard() {
 /* ───────── Liquidity & Bal Sheet ───────── */
 export function LiquidityCard() {
   // WALCL (Fed total assets, $mn), SOFR (%), WTREGEN (TGA, $mn)
-  const { data, error } = useFred('WALCL,SOFR,WTREGEN', 1);
+  const { data } = useFred('WALCL,SOFR,WTREGEN', 1);
   const v = (id, fb) => {
     const arr = data && data[id];
     return Array.isArray(arr) && arr.length ? arr[0].value : fb;
@@ -421,30 +421,25 @@ export function LiquidityCard() {
   const sofr = v('SOFR', 5.31);        // %
   const tga = v('WTREGEN', 750000);    // $mn
 
-  const assetsT = (walcl / 1_000_000).toFixed(2); // -> $T
-  const tgaB = Math.round(tga / 1000);            // -> $B
+  const assetsTnum = walcl / 1_000_000;            // numeric $T
+  const assetsT = assetsTnum.toFixed(2);
+  const tgaB = Math.round(tga / 1000);             // -> $B
 
-  // QT pace is Fed policy guidance, not a daily series. Manual knob —
-  // update only when the Fed changes the runoff cap.
+  // QT pace is Fed policy guidance, not a daily series. Manual knob.
   const qtPace = '-$60B';
 
-  const W = 320, H = 60;
-  const pts = [
-    [4, 28], [40, 28], [56, 30], [92, 30], [108, 32], [144, 32],
-    [160, 34], [196, 34], [212, 36], [248, 36], [264, 38], [316, 38],
+  // Interpretation key (a cheatsheet, not a tracker). Neutral tones, no red.
+  const bands = [
+    { hi: Infinity, lo: 7.2, label: 'Expanding · easing liquidity' },
+    { hi: 7.2, lo: 6.5, label: 'Flat / mild QT · neutral-tight' },
+    { hi: 6.5, lo: -Infinity, label: 'Contracting · tight liquidity' },
   ];
-  const stepPath = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ');
+  const activeIdx = bands.findIndex((b) => assetsTnum >= b.lo && assetsTnum < b.hi);
+  const rangeTxt = (b) =>
+    b.hi === Infinity ? '> $7.2T' : b.lo === -Infinity ? '< $6.5T' : '$6.5–7.2T';
 
   return (
-    <Card
-      title="Liquidity & Bal Sheet"
-      right={
-        <span
-          className="w-2.5 h-2.5 rounded-full bg-red mt-2 mr-1"
-          style={{ boxShadow: '0 0 8px rgba(239,68,68,0.7)' }}
-        ></span>
-      }
-    >
+    <Card title="Liquidity & Bal Sheet">
       <div className="grid grid-cols-2 gap-y-5 gap-x-4">
         <div>
           <div className="label">Fed Total Assets</div>
@@ -452,7 +447,7 @@ export function LiquidityCard() {
         </div>
         <div>
           <div className="label">QT Pace</div>
-          <div className="big-num text-[28px] mt-1.5 text-red">
+          <div className="big-num text-[28px] mt-1.5 text-fg2">
             {qtPace}<span className="text-mute text-[13px]">/mo</span>
           </div>
         </div>
@@ -466,12 +461,37 @@ export function LiquidityCard() {
         </div>
       </div>
 
-      <div className="relative mt-5 h-[64px]">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
-          <path d={stepPath} stroke="#EF4444" strokeWidth="2" fill="none" />
-        </svg>
-        <div className="absolute inset-0 grid place-items-center pointer-events-none">
-          <span className="watermark whitespace-nowrap">TIGHTENING REGIME</span>
+      {/* Interpretation key — neutral, glanceable cheatsheet */}
+      <div className="note-card p-3.5 mt-5">
+        <div className="label mb-2.5" style={{ color: '#8A93A6' }}>
+          Balance-sheet read
+        </div>
+        <div className="space-y-1.5">
+          {bands.map((b, i) => {
+            const active = i === activeIdx;
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-between text-[13px] num rounded-lg px-2.5 py-1.5"
+                style={{
+                  background: active ? 'rgba(99,130,180,0.14)' : 'transparent',
+                  border: active
+                    ? '1px solid rgba(99,130,180,0.35)'
+                    : '1px solid transparent',
+                }}
+              >
+                <span style={{ color: active ? '#C7D2E4' : '#5B6472', minWidth: 78 }}>
+                  {rangeTxt(b)}
+                </span>
+                <span
+                  style={{ color: active ? '#C7D2E4' : '#5B6472' }}
+                  className="text-right"
+                >
+                  {b.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </Card>
