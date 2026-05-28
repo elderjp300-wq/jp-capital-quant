@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { fmt, Card, Reveal, I } from '@/components/lib';
+import { useFred } from '@/components/useFred';
 
 // Dashboard screen — main landing.
 // Cards: AI Brief, Risk Appetite, Fed Funds/OIS, US Yield Curve,
@@ -263,64 +264,85 @@ export function FedFundsCard() {
 
 /* ───────── US Yield Curve ───────── */
 export function YieldCurveCard() {
+  const { data, loading, error } = useFred('DGS2,DGS5,DGS10,DGS30', 1);
+
+  // Fallback to last-known values if the fetch fails, so the card never breaks.
+  const v = (id, fb) => {
+    const arr = data && data[id];
+    return Array.isArray(arr) && arr.length ? arr[0].value : fb;
+  };
+  const y2 = v('DGS2', 4.82);
+  const y5 = v('DGS5', 4.41);
+  const y10 = v('DGS10', 4.37);
+  const y30 = v('DGS30', 4.52);
+
   const bars = [
-    { k: '2Y',  v: 4.82, color: '#F59E0B' },
-    { k: '5Y',  v: 4.41, color: '#3B82F6' },
-    { k: '10Y', v: 4.37, color: '#3B82F6' },
-    { k: '30Y', v: 4.52, color: '#F59E0B' },
+    { k: '2Y', v: y2 },
+    { k: '5Y', v: y5 },
+    { k: '10Y', v: y10 },
+    { k: '30Y', v: y30 },
   ];
-  const W = 340, H = 170, padL = 40, padR = 8, padT = 16, padB = 28;
-  const minY = 4.17, maxY = 5.02;
-  const ys = (v) => padT + (1 - (v - minY) / (maxY - minY)) * (H - padT - padB);
-  const bw = (W - padL - padR) / bars.length;
+
+  // Derived 2s10s spread + honest label/colour
+  const spread = Math.round((y10 - y2) * 100); // bps
+  const inverted = spread < 0;
+  const flat = Math.abs(spread) <= 10;
+  const headline = inverted ? 'Inverted' : flat ? 'Flat' : 'Normal';
+  const pillCls = inverted ? 'pill-red' : flat ? 'pill-orange' : 'pill-green';
+  const pillTxt = `${spread >= 0 ? '+' : ''}${spread}bps 2s10s`;
+  const barColor = (k) => (k === '2Y' || k === '30Y' ? '#F59E0B' : '#3B82F6');
+
+  // Auto-scale y-axis to the live values with padding
+  const vals = bars.map((b) => b.v);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const padR = (hi - lo) * 0.25 || 0.2;
+  const minY = lo - padR, maxY = hi + padR;
+
+  const W = 340, H = 170, pL = 40, pR = 8, pT = 16, pB = 28;
+  const ys = (val) => pT + (1 - (val - minY) / (maxY - minY)) * (H - pT - pB);
+  const bw = (W - pL - pR) / bars.length;
+  const ticks = [maxY, (maxY + minY) / 2, minY];
 
   return (
     <Card
       title="US Yield Curve"
-      right={<span className="pill pill-red">Inverted -45bps</span>}
+      right={<span className={`pill ${pillCls}`}>{pillTxt}</span>}
     >
       <div className="flex items-center gap-3">
-        <span className="big-num text-[34px] leading-none">Flat/Inverted</span>
+        <span className="big-num text-[34px] leading-none">
+          {loading ? '…' : headline}
+        </span>
       </div>
 
       <div className="flex items-center gap-2 mt-3 text-mute text-[13.5px]">
         <I.arrowUpRight className="w-4 h-4 text-orange" />
-        Bear Steepening Momentum
+        {error ? 'Last known — feed unavailable' : `10Y ${fmt(y10, 2)}% · 30Y ${fmt(y30, 2)}%`}
       </div>
 
       <div className="mt-4">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block">
-          {/* y labels */}
-          {[5.02, 4.67, 4.42, 4.17].map((v) => (
+          {ticks.map((val) => (
             <text
-              key={v}
-              x={padL - 6}
-              y={ys(v) + 4}
+              key={val}
+              x={pL - 6}
+              y={ys(val) + 4}
               textAnchor="end"
               fontSize="11"
               fill="#71717A"
               className="num"
             >
-              {v.toFixed(2)}
+              {val.toFixed(2)}
             </text>
           ))}
 
-          {/* bars */}
           {bars.map((b, i) => {
-            const x = padL + i * bw + bw * 0.18;
+            const x = pL + i * bw + bw * 0.18;
             const w = bw * 0.64;
             const y = ys(b.v);
-            const baseY = H - padB;
+            const baseY = H - pB;
             return (
               <g key={b.k}>
-                <rect
-                  x={x}
-                  y={y}
-                  width={w}
-                  height={baseY - y}
-                  rx="2"
-                  fill={b.color}
-                />
+                <rect x={x} y={y} width={w} height={baseY - y} rx="2" fill={barColor(b.k)} />
                 <text
                   x={x + w / 2}
                   y={H - 6}
