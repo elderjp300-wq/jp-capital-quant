@@ -1,45 +1,8 @@
 'use client';
 
-import { fmt, FlashNum, useTickingPrice, I } from '@/components/lib';
+import { I } from '@/components/lib';
 
-// Top ticker + bottom navigation
-// Shared shell chrome used on every screen.
-
-export function TopTicker() {
-  const dxy = useTickingPrice(7, 104.5279, 0.04, 2400);
-  const spx = useTickingPrice(13, 5234.88, 0.9, 2800);
-  const dxyBase = 104.17;
-  const spxBase = 5252.55;
-  const dxyChg = dxy - dxyBase;
-  const spxChg = spx - spxBase;
-
-  return (
-    <div className="ticker-row px-4 py-3">
-      <div className="flex items-center justify-between gap-6">
-        <div className="flex items-baseline gap-2">
-          <span className="text-mute num text-[11px] tracking-[0.04em]">DXY</span>
-          <FlashNum value={dxy} format={(v) => fmt(v, 3)} className="text-[14px] text-fg2" />
-          <span
-            className={`num text-[12px] ${dxyChg >= 0 ? 'text-green' : 'text-red'}`}
-          >
-            {dxyChg >= 0 ? '+' : ''}
-            {fmt(dxyChg, 3)}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-mute num text-[11px] tracking-[0.04em]">SPX</span>
-          <FlashNum value={spx} format={(v) => fmt(v, 4)} className="text-[14px] text-fg2" />
-          <span
-            className={`num text-[12px] ${spxChg >= 0 ? 'text-green' : 'text-red'}`}
-          >
-            {spxChg >= 0 ? '+' : ''}
-            {fmt(spxChg, 4)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Bottom navigation — shared shell chrome used on every screen.
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: I.dashboard },

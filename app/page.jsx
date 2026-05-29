@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TopTicker, BottomNav } from '@/components/Shell';
+import { BottomNav } from '@/components/Shell';
 import DashboardScreen from '@/components/Dashboard';
 import MarketsScreen from '@/components/Markets';
 import MacroScreen from '@/components/Macro';
@@ -46,7 +46,6 @@ export default function Page() {
   return (
     <div className="min-h-screen relative bg-black">
       <div className="mx-auto max-w-[520px] relative min-h-screen pb-[88px] bg-black">
-        <TopTicker />
         <div key={tab} className="screen-fade">
           <Screen />
         </div>

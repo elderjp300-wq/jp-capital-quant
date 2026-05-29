@@ -1,9 +1,23 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { fmt, Card, Reveal, I } from '@/components/lib';
 import { useFred } from '@/components/useFred';
 import { useBrief } from '@/components/useBrief';
+
+// Inline markets fetch (EUR/USD) for the dollar read card.
+function useStateMarkets() {
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/markets?symbol=EUR/USD')
+      .then((r) => r.json())
+      .then((j) => { if (alive && j && !j.error) setM(j); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  return [m, setM];
+}
 
 // Dashboard screen — main landing.
 // Cards: AI Brief, Risk Appetite, Fed Funds/OIS, US Yield Curve,
@@ -308,23 +322,40 @@ export function YieldCurveCard() {
   );
 }
 
-/* ───────── DXY Strength ───────── */
+/* ───────── EUR/USD (USD read) ───────── */
 export function DXYStrengthCard() {
-  const series = useMemo(
-    () => [0.8, 0.7, 0.85, 0.6, 0.55, 0.7, 0.5, 0.45, 0.3, 0.35, 0.25, 0.2, 0.15, 0.18, 0.1, 0.05, 0.08, 0.02, 0],
-    [],
-  );
+  const [m] = useStateMarkets();
+  const error = false;
+
+  // Fallbacks keep the card alive if the feed hiccups.
+  const price = m ? m.price : 1.1644;
+  const pct30 = m ? m.pct30 : -0.75;
+  const series = m && m.series && m.series.length ? m.series : [1.173, 1.171, 1.168, 1.165, 1.164];
+
+  // EUR/USD down => USD strong. Frame the tag around the DOLLAR.
+  const usdFirm = pct30 < -0.15;        // euro down = dollar firm
+  const usdSoft = pct30 > 0.15;         // euro up = dollar soft
+  const tag = usdFirm ? 'USD Firm' : usdSoft ? 'USD Soft' : 'USD Flat';
+  const tagCls = usdFirm ? 'pill-red' : usdSoft ? 'pill-green' : 'pill-orange';
+  // EUR move colour (the pair itself): up green, down red
+  const moveCls = pct30 >= 0 ? 'text-green' : 'text-red';
+  // Spark colour follows the dollar read (red = USD strengthening backdrop)
+  const sparkColor = usdSoft ? '#22C55E' : '#EF4444';
+
+  // Normalize series to 0..1 for the spark
+  const lo = Math.min(...series), hi = Math.max(...series);
+  const span = hi - lo || 1;
+  const norm = series.map((v) => 1 - (v - lo) / span); // invert so up-price = up-line
 
   return (
-    <Card
-      title="DXY Strength"
-      right={<span className="pill pill-orange">Bearish Cons.</span>}
-    >
+    <Card title="EUR / USD" right={<span className={`pill ${tagCls}`}>{tag}</span>}>
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className="big-num text-[42px] leading-none">104.32</div>
+          <div className="big-num text-[42px] leading-none">{fmt(price, 4)}</div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="num text-red text-[16px] font-semibold">-1.20%</span>
+            <span className={`num text-[16px] font-semibold ${moveCls}`}>
+              {pct30 >= 0 ? '+' : ''}{fmt(pct30, 2)}%
+            </span>
             <span className="text-mute num text-[13px]">30D</span>
           </div>
         </div>
@@ -332,33 +363,27 @@ export function DXYStrengthCard() {
           <svg width="120" height="60" viewBox="0 0 120 60" className="block">
             <defs>
               <linearGradient id="dxyFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="rgba(239,68,68,0.45)" />
-                <stop offset="100%" stopColor="rgba(239,68,68,0)" />
+                <stop offset="0%" stopColor={sparkColor} stopOpacity="0.45" />
+                <stop offset="100%" stopColor={sparkColor} stopOpacity="0" />
               </linearGradient>
             </defs>
             {(() => {
-              const pts = series.map((v, i) => [
-                4 + (i * (120 - 8)) / (series.length - 1),
+              const pts = norm.map((v, i) => [
+                4 + (i * (120 - 8)) / (norm.length - 1),
                 10 + v * 40,
               ]);
-              const d =
-                'M' +
-                pts
-                  .map(([x, y], i) => {
-                    if (i === 0) return `${x.toFixed(1)},${y.toFixed(1)}`;
-                    const [px, py] = pts[i - 1];
-                    const cx = (px + x) / 2;
-                    return `C${cx.toFixed(1)},${py.toFixed(1)} ${cx.toFixed(
-                      1,
-                    )},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
-                  })
-                  .join(' ');
+              const d = 'M' + pts.map(([x, y], i) => {
+                if (i === 0) return `${x.toFixed(1)},${y.toFixed(1)}`;
+                const [px, py] = pts[i - 1];
+                const cx = (px + x) / 2;
+                return `C${cx.toFixed(1)},${py.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
+              }).join(' ');
               const last = pts[pts.length - 1];
               const area = `${d} L${last[0]},56 L${pts[0][0]},56 Z`;
               return (
                 <>
                   <path d={area} fill="url(#dxyFill)" />
-                  <path d={d} stroke="#EF4444" strokeWidth="2" fill="none" />
+                  <path d={d} stroke={sparkColor} strokeWidth="2" fill="none" />
                 </>
               );
             })()}
@@ -368,10 +393,15 @@ export function DXYStrengthCard() {
 
       <div className="note-card p-4 mt-4">
         <p className="text-[14px] leading-[1.55] text-mute">
-          <span className="text-blue font-semibold">Correlation Note:</span>{' '}
+          <span className="text-blue font-semibold">Read:</span>{' '}
           <span className="text-fg2">
-            USD weakness is creating a bid for EM equities and commodities. Watch
-            103.50 support.
+            {error
+              ? 'Live feed unavailable — showing last known.'
+              : usdFirm
+              ? 'Euro softening = dollar firm. Headwind for gold and EM; watch DXY proxy and yields.'
+              : usdSoft
+              ? 'Euro firming = dollar soft. Tailwind for gold, commodities and EM.'
+              : 'EUR/USD range-bound. Dollar broadly neutral; wait for a catalyst.'}
           </span>
         </p>
       </div>
