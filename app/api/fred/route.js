@@ -2,19 +2,31 @@ export const revalidate = 3600;
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+// Fetch one FRED series, with one automatic retry if rate-limited (429).
 async function fetchSeries(id, key, limit) {
   const url =
     'https://api.stlouisfed.org/fred/series/observations' +
     '?series_id=' + encodeURIComponent(id) +
     '&api_key=' + key +
     '&file_type=json&sort_order=desc&limit=' + limit;
-  const r = await fetch(url, { next: { revalidate: 3600 } });
-  if (!r.ok) return [id, { error: 'FRED ' + r.status }];
-  const data = await r.json();
-  const obs = (data.observations || [])
-    .filter((o) => o.value !== '.')
-    .map((o) => ({ date: o.date, value: Number(o.value) }));
-  return [id, obs];
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await fetch(url, { next: { revalidate: 3600 } });
+    if (r.ok) {
+      const data = await r.json();
+      const obs = (data.observations || [])
+        .filter((o) => o.value !== '.')
+        .map((o) => ({ date: o.date, value: Number(o.value) }));
+      return [id, obs];
+    }
+    // Rate-limited or transient: wait and retry once.
+    if (r.status === 429 && attempt === 0) {
+      await sleep(700);
+      continue;
+    }
+    return [id, { error: 'FRED ' + r.status }];
+  }
+  return [id, { error: 'FRED retry-failed' }];
 }
 
 export async function GET(request) {
@@ -33,13 +45,13 @@ export async function GET(request) {
   const ids = series.split(',').map((s) => s.trim()).filter(Boolean);
 
   try {
-    // Sequential with a small gap — cannot trip FRED's burst limit.
-    // Cached 6h, so the extra latency is paid once per cache cycle.
+    // Sequential with a comfortable 500ms gap (well within FRED's window),
+    // plus per-series retry above. Cached 6h so latency is paid once.
     const out = {};
     for (let i = 0; i < ids.length; i++) {
       const [id, val] = await fetchSeries(ids[i], key, limit);
       out[id] = val;
-      if (i < ids.length - 1) await sleep(120); // 120ms between calls
+      if (i < ids.length - 1) await sleep(500);
     }
     return Response.json(out, {
       headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400' },
