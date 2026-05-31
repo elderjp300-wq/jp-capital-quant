@@ -1,6 +1,7 @@
 export const revalidate = 3600;
 
-// Fetch one FRED series (latest `limit` observations, newest first)
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
 async function fetchSeries(id, key, limit) {
   const url =
     'https://api.stlouisfed.org/fred/series/observations' +
@@ -14,21 +15,6 @@ async function fetchSeries(id, key, limit) {
     .filter((o) => o.value !== '.')
     .map((o) => ({ date: o.date, value: Number(o.value) }));
   return [id, obs];
-}
-
-// Small helper: run async tasks with limited concurrency (avoids FRED 429 bursts)
-async function mapLimit(items, limit, fn) {
-  const results = [];
-  let i = 0;
-  async function worker() {
-    while (i < items.length) {
-      const idx = i++;
-      results[idx] = await fn(items[idx]);
-    }
-  }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
-  await Promise.all(workers);
-  return results;
 }
 
 export async function GET(request) {
@@ -47,9 +33,15 @@ export async function GET(request) {
   const ids = series.split(',').map((s) => s.trim()).filter(Boolean);
 
   try {
-    // Concurrency capped at 2 to stay under FRED's burst limit.
-    const results = await mapLimit(ids, 2, (id) => fetchSeries(id, key, limit));
-    return Response.json(Object.fromEntries(results), {
+    // Sequential with a small gap — cannot trip FRED's burst limit.
+    // Cached 6h, so the extra latency is paid once per cache cycle.
+    const out = {};
+    for (let i = 0; i < ids.length; i++) {
+      const [id, val] = await fetchSeries(ids[i], key, limit);
+      out[id] = val;
+      if (i < ids.length - 1) await sleep(120); // 120ms between calls
+    }
+    return Response.json(out, {
       headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400' },
     });
   } catch (e) {
