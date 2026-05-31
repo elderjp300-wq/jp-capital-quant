@@ -1,133 +1,179 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { fmt, genSeries, Sparkline, Reveal } from '@/components/lib';
+import { useState, useEffect } from 'react';
+import { fmt, Sparkline, Card, Reveal, I } from '@/components/lib';
 
-// Markets screen — segmented (Rates / Equities / FX / Commodities / Crypto)
-// and a list of instrument rows with sparklines and status pills.
+// Markets screen — AI macro board.
+// 4 key assets (Gold, US 10Y, BTC, EUR/USD), each with live price + spark
+// + an AI-written cross-asset read, plus a desk synthesis footer.
+// Data comes from /api/market-reads (FRED + Twelve Data + CoinGecko + Groq).
 
-const MARKETS_DATA = {
-  Rates: [
-    { sym: 'US2Y',    name: 'US 2-Year',   px: 4.82,  chg: 1.05,  status: ['Hawkish', 'green'],     spark: { seed: 21, up: true } },
-    { sym: 'US5Y',    name: 'US 5-Year',   px: 4.41,  chg: 0.68,  status: ['Neutral', 'green'],     spark: { seed: 22, up: true } },
-    { sym: 'US10Y',   name: 'US 10-Year',  px: 4.37,  chg: 0.46,  status: ['Bear Flatten', 'green'], spark: { seed: 23, up: true } },
-    { sym: 'US30Y',   name: 'US 30-Year',  px: 4.52,  chg: -0.22, status: ['Bear Flatten', 'red'],   spark: { seed: 24, up: false } },
-    { sym: 'BUND10Y', name: 'Bund 10-Year',px: 2.45,  chg: 1.66,  status: ['Hawkish', 'green'],     spark: { seed: 25, up: true } },
-    { sym: 'JGB10Y',  name: 'JGB 10-Year', px: 0.88,  chg: 1.15,  status: ['Yield Cap', 'green'],   spark: { seed: 26, up: true } },
-    { sym: 'GILT10Y', name: 'Gilt 10-Year',px: 4.12,  chg: 1.48,  status: ['Hawkish', 'green'],     spark: { seed: 27, up: true } },
-  ],
-  Equities: [
-    { sym: 'SPX',     name: 'S&P 500',         px: 5234.88, chg: -0.34, status: ['Choppy', 'orange'], spark: { seed: 31, up: false } },
-    { sym: 'NDX',     name: 'Nasdaq 100',      px: 18432.5, chg: -0.42, status: ['Tech Heavy', 'red'], spark: { seed: 32, up: false } },
-    { sym: 'RTY',     name: 'Russell 2000',    px: 2068.4,  chg: 0.85,  status: ['Rotating', 'green'], spark: { seed: 33, up: true } },
-    { sym: 'STOXX50', name: 'Euro Stoxx 50',   px: 5045.2,  chg: 0.52,  status: ['Bullish', 'green'], spark: { seed: 34, up: true } },
-    { sym: 'NKY',     name: 'Nikkei 225',      px: 38617.1, chg: 1.18,  status: ['Bullish', 'green'], spark: { seed: 35, up: true } },
-    { sym: 'HSI',     name: 'Hang Seng',       px: 19012.4, chg: -0.91, status: ['Bearish', 'red'],   spark: { seed: 36, up: false } },
-  ],
-  FX: [
-    { sym: 'EUR/USD', name: 'Euro / US Dollar',          px: 1.0845,  chg: -0.11, status: ['Bearish', 'red'],   spark: { seed: 41, up: false } },
-    { sym: 'GBP/USD', name: 'Pound / US Dollar',         px: 1.265,   chg: -0.16, status: ['Neutral', 'red'],   spark: { seed: 42, up: false } },
-    { sym: 'USD/JPY', name: 'US Dollar / Yen',           px: 151.80,  chg: 0.16,  status: ['Intervention Risk', 'green'], spark: { seed: 43, up: true } },
-    { sym: 'USD/CNH', name: 'US Dollar / Offshore Yuan', px: 7.254,   chg: 0.07,  status: ['Bullish', 'green'], spark: { seed: 44, up: true } },
-    { sym: 'DXY',     name: 'US Dollar Index',           px: 104.32,  chg: 0.14,  status: ['Bullish', 'green'], spark: { seed: 45, up: true } },
-  ],
-  Commodities: [
-    { sym: 'WTI',  name: 'WTI Crude',     px: 78.42, chg: 1.24,  status: ['Backwardation', 'green'], spark: { seed: 51, up: true } },
-    { sym: 'GOLD', name: 'Gold Spot',     px: 2342.7, chg: 0.62, status: ['Bullish', 'green'],       spark: { seed: 52, up: true } },
-    { sym: 'CU',   name: 'Copper',        px: 4.61,  chg: -0.85, status: ['Bearish', 'red'],         spark: { seed: 53, up: false } },
-    { sym: 'NG',   name: 'Natural Gas',   px: 2.74,  chg: 2.18,  status: ['Volatile', 'orange'],     spark: { seed: 54, up: true } },
-    { sym: 'XAG',  name: 'Silver Spot',   px: 31.42, chg: 1.45,  status: ['Bullish', 'green'],       spark: { seed: 55, up: true } },
-  ],
-  Crypto: [
-    { sym: 'BTC',  name: 'Bitcoin',  px: 67342.0, chg: 2.18,  status: ['Bullish', 'green'],  spark: { seed: 61, up: true } },
-    { sym: 'ETH',  name: 'Ethereum', px: 3514.6,  chg: 1.42,  status: ['Bullish', 'green'],  spark: { seed: 62, up: true } },
-    { sym: 'SOL',  name: 'Solana',   px: 172.5,   chg: 3.85,  status: ['Momentum', 'green'], spark: { seed: 63, up: true } },
-    { sym: 'BNB',  name: 'BNB',      px: 612.4,   chg: -0.42, status: ['Neutral', 'red'],    spark: { seed: 64, up: false } },
-    { sym: 'XRP',  name: 'XRP',      px: 0.5184,  chg: -1.12, status: ['Bearish', 'red'],    spark: { seed: 65, up: false } },
-  ],
-};
+const ASSETS = [
+  { id: 'gold',   sym: 'XAU/USD', name: 'Gold Spot',          decimals: 2, unit: '$' },
+  { id: 'us10y',  sym: 'US 10Y',  name: 'US 10-Year Yield',   decimals: 2, unit: '',  suffix: '%' },
+  { id: 'btc',    sym: 'BTC',     name: 'Bitcoin',            decimals: 0, unit: '$' },
+  { id: 'eurusd', sym: 'EUR/USD', name: 'Euro / US Dollar',   decimals: 4, unit: '' },
+];
 
-export function MarketsScreen() {
-  const cats = Object.keys(MARKETS_DATA);
-  const [cat, setCat] = useState('Rates');
-  const rows = MARKETS_DATA[cat];
+// Map each asset id to its spark source in the snapshot/route data.
+function useMarketBoard() {
+  const [board, setBoard] = useState(null);
+  const [sparks, setSparks] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+
+    // Main AI board (prices + reads + desk)
+    const boardP = fetch('/api/market-reads')
+      .then((r) => r.json())
+      .then((j) => { if (alive) { if (j.error) setError(true); else setBoard(j); } })
+      .catch(() => { if (alive) setError(true); });
+
+    // Spark series (fetched in parallel from the same cached routes)
+    const sparkP = Promise.all([
+      fetch('/api/markets?symbol=XAU/USD').then((r) => r.json()).catch(() => null),
+      fetch('/api/markets?symbol=EUR/USD').then((r) => r.json()).catch(() => null),
+      fetch('/api/crypto').then((r) => r.json()).catch(() => null),
+      fetch('/api/fred?series=DGS10&limit=22').then((r) => r.json()).catch(() => null),
+    ]).then(([gold, eur, btc, fred]) => {
+      if (!alive) return;
+      const fredSeries =
+        fred && Array.isArray(fred.DGS10)
+          ? fred.DGS10.map((o) => o.value).reverse()
+          : [];
+      setSparks({
+        gold: gold && gold.series ? gold.series : [],
+        eurusd: eur && eur.series ? eur.series : [],
+        btc: btc && btc.series ? btc.series : [],
+        us10y: fredSeries,
+      });
+    });
+
+    Promise.all([boardP, sparkP]).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  return { board, sparks, loading, error };
+}
+
+function AssetCard({ asset, snap, read, spark }) {
+  const price = snap ? snap.price : null;
+  const chg = snap ? (asset.id === 'us10y' ? snap.chg30pts : snap.chg30) : null;
+  const up = (chg ?? 0) >= 0;
+  // For gold/EUR a rise is "green"; for 10Y we keep green=up too (neutral convention).
+  const moveColor = up ? '#22C55E' : '#EF4444';
+
+  const priceTxt =
+    price == null
+      ? '—'
+      : `${asset.unit}${fmt(price, asset.decimals)}${asset.suffix || ''}`;
+
+  const chgTxt =
+    chg == null
+      ? ''
+      : asset.id === 'us10y'
+      ? `${up ? '+' : ''}${fmt(chg, 2)}pts 30D`
+      : `${up ? '+' : ''}${fmt(chg, 2)}% 30D`;
 
   return (
-    <div className="pt-3">
-      {/* segmented bar */}
-      <div className="no-scrollbar overflow-x-auto pb-3 px-4">
-        <div className="flex gap-2 w-max">
-          {cats.map((c) => {
-            const active = c === cat;
-            return (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={`px-5 py-2.5 rounded-full text-[14px] font-semibold tracking-tight ${
-                  active ? 'seg-active' : 'text-mute bg-white/[0.04] border border-white/5'
-                }`}
-              >
-                {c}
-              </button>
-            );
-          })}
+    <Card title={asset.sym} right={<span className="text-mute text-[12px]">{asset.name}</span>}>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="big-num text-[30px] leading-none">{priceTxt}</div>
+          <div className="num text-[13px] mt-1.5" style={{ color: moveColor }}>
+            {chgTxt}
+          </div>
+        </div>
+        <div className="shrink-0 pb-1">
+          <Sparkline
+            data={spark && spark.length ? spark : [1, 1.02, 0.99, 1.01, 1]}
+            width={96}
+            height={40}
+            stroke={moveColor}
+            strokeWidth={1.8}
+          />
         </div>
       </div>
 
-      {/* rows */}
-      <div className="space-y-3 px-4">
-        {rows.map((r, i) => (
-          <Reveal key={r.sym} delay={i * 60}>
-            <MarketRow r={r} />
-          </Reveal>
-        ))}
-      </div>
-    </div>
+      {read ? (
+        <div className="note-card p-3.5 mt-4 space-y-2">
+          <p className="text-[14px] leading-[1.5] text-fg2">{read.move}</p>
+          <p className="text-[14px] leading-[1.5] text-mute">
+            <span className="text-blue font-semibold">Implication: </span>
+            {read.implication}
+          </p>
+        </div>
+      ) : (
+        <div className="note-card p-3.5 mt-4">
+          <p className="text-[13px] text-mute">Read unavailable.</p>
+        </div>
+      )}
+    </Card>
   );
 }
 
-export function MarketRow({ r }) {
-  const up = r.chg >= 0;
-  const sparkStroke = r.spark.up ? '#22C55E' : '#EF4444';
-  // Build a deterministic series biased by spark.up
-  const data = useMemo(() => {
-    const base = genSeries(r.spark.seed, 18, 0.8, r.spark.up ? 0.06 : -0.06);
-    return base;
-  }, [r.spark.seed, r.spark.up]);
+export function MarketsScreen() {
+  const { board, sparks, loading, error } = useMarketBoard();
+  const snap = board ? board.snapshot : null;
+  const reads = board ? board.reads : null;
+  const desk = reads ? reads.desk : null;
+  const updated = board ? board.updated : null;
 
-  const [statusText, statusTone] = r.status;
-  const fmtPx = (v) => {
-    if (Math.abs(v) >= 1000) return fmt(v, 2);
-    if (Math.abs(v) >= 100) return fmt(v, 2);
-    if (Math.abs(v) >= 10) return fmt(v, 2);
-    if (Math.abs(v) >= 1) return fmt(v, 3);
-    return fmt(v, 4);
+  const fmtUpdated = (iso) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return ''; }
   };
 
   return (
-    <div className="card px-4 py-3.5 flex items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-[17px] font-bold tracking-tight text-fg leading-tight truncate">
-          {r.sym}
-        </div>
-        <div className="text-[12px] text-mute mt-0.5 truncate">{r.name}</div>
+    <div className="pt-4 px-4 space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-[20px] font-bold tracking-tight text-fg">Macro Board</h1>
+        <span className="text-mute text-[12px]">
+          {loading ? 'Loading…' : updated ? `Updated ${fmtUpdated(updated)}` : ''}
+        </span>
       </div>
 
-      <Sparkline data={data} width={70} height={28} stroke={sparkStroke} strokeWidth={1.7} />
-
-      <div className="text-right shrink-0 min-w-[60px]">
-        <div className="num text-[16px] font-bold text-fg leading-tight">
-          {fmtPx(r.px)}
+      {error && !board ? (
+        <div className="note-card p-4 text-mute text-[14px]">
+          Live board unavailable right now. Pull to refresh shortly.
         </div>
-        <div className={`num text-[12px] mt-0.5 ${up ? 'text-green' : 'text-red'}`}>
-          {up ? '+' : ''}
-          {fmt(r.chg, 2)}%
-        </div>
-      </div>
+      ) : null}
 
-      <span className={`pill pill-${statusTone} shrink-0`} style={{ fontSize: 11, padding: '4px 8px' }}>
-        {statusText}
-      </span>
+      {ASSETS.map((a, i) => (
+        <Reveal key={a.id} delay={i * 70}>
+          <AssetCard
+            asset={a}
+            snap={snap ? snap[a.id] : null}
+            read={reads ? reads[a.id] : null}
+            spark={sparks ? sparks[a.id] : null}
+          />
+        </Reveal>
+      ))}
+
+      {/* Desk synthesis footer */}
+      <Reveal delay={ASSETS.length * 70}>
+        <section className="card-accent p-5 mt-1">
+          <header className="flex items-center gap-3 mb-3">
+            <span className="icon-blue w-9 h-9 rounded-xl grid place-items-center text-blue">
+              <I.spark className="w-4 h-4" />
+            </span>
+            <span className="text-blue font-semibold tracking-[0.08em] text-[12.5px]">
+              DESK TAKE
+            </span>
+          </header>
+          <p className="text-fg2 text-[15.5px] leading-[1.55]">
+            {desk || (loading ? 'Synthesizing the board…' : 'Desk take unavailable.')}
+          </p>
+        </section>
+      </Reveal>
     </div>
   );
 }
