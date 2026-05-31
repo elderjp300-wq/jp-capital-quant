@@ -1,9 +1,88 @@
 'use client';
 
-import { pct, Card, Reveal } from '@/components/lib';
+import { useFred } from '@/components/useFred';
+import { pct, fmt, Card, Reveal } from '@/components/lib';
 
 // Macro screen — Cycle Phase ring, Global Regime Map grid,
 // Central Bank Policy Tracker rows, 3M Cross-Asset Momentum bars.
+
+/* ───────── US Macro Metrics (live FRED) ───────── */
+export function MacroMetricsCard() {
+  // 13 months covers YoY for the monthly indices; GDPC1 quarterly.
+  const { data } = useFred('CPIAUCSL,CPILFESL,PCEPI,UNRATE,ICSA,GDPC1', 13);
+
+  const ser = (id) => (data && Array.isArray(data[id]) ? data[id] : []);
+
+  // Year-over-year % for an index series (latest vs ~12 periods back)
+  const yoy = (id) => {
+    const a = ser(id);
+    if (a.length < 13) return null;
+    return (a[0].value / a[12].value - 1) * 100;
+  };
+  // Latest raw value + its date
+  const latest = (id) => {
+    const a = ser(id);
+    return a.length ? a[0] : null;
+  };
+  // QoQ annualized real growth for GDPC1
+  const gdpGrowth = () => {
+    const a = ser('GDPC1');
+    if (a.length < 2) return null;
+    const q = a[0].value / a[1].value; // quarterly ratio
+    return (Math.pow(q, 4) - 1) * 100;  // annualized
+  };
+
+  const cpi = yoy('CPIAUCSL');
+  const core = yoy('CPILFESL');
+  const pce = yoy('PCEPI');
+  const un = latest('UNRATE');
+  const claims = latest('ICSA');
+  const gdp = gdpGrowth();
+
+  // MoM / WoW deltas for the raw-value metrics
+  const unPrev = ser('UNRATE')[1];
+  const claimsPrev = ser('ICSA')[1];
+  const unDelta = un && unPrev ? un.value - unPrev.value : null;
+  const claimsDelta = claims && claimsPrev ? claims.value - claimsPrev.value : null;
+
+  const fmtDate = (d) => {
+    if (!d) return '';
+    try {
+      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+    } catch { return d; }
+  };
+
+  // Inflation: lower = good (green when <= 2.5, orange mid, red hot)
+  const inflTone = (v) =>
+    v == null ? 'text-fg' : v <= 2.5 ? 'text-green' : v <= 3.5 ? 'text-orange' : 'text-red';
+
+  const metrics = [
+    { k: 'CPI (YoY)',   v: cpi == null ? '—' : pct(cpi, 1),  sub: fmtDate(latest('CPIAUCSL')?.date), tone: inflTone(cpi) },
+    { k: 'Core CPI',    v: core == null ? '—' : pct(core, 1), sub: fmtDate(latest('CPILFESL')?.date), tone: inflTone(core) },
+    { k: 'PCE (YoY)',   v: pce == null ? '—' : pct(pce, 1),   sub: fmtDate(latest('PCEPI')?.date),    tone: inflTone(pce) },
+    { k: 'Unemployment',v: un == null ? '—' : fmt(un.value, 1) + '%',
+        sub: (unDelta == null ? '' : (unDelta >= 0 ? '+' : '') + fmt(unDelta, 1) + 'pp · ') + fmtDate(un?.date),
+        tone: 'text-fg' },
+    { k: 'Jobless Claims', v: claims == null ? '—' : Math.round(claims.value / 1000) + 'K',
+        sub: (claimsDelta == null ? '' : (claimsDelta >= 0 ? '+' : '') + Math.round(claimsDelta / 1000) + 'K · ') + fmtDate(claims?.date),
+        tone: claimsDelta != null && claimsDelta > 0 ? 'text-orange' : 'text-fg' },
+    { k: 'GDP (real)',  v: gdp == null ? '—' : pct(gdp, 1),   sub: fmtDate(latest('GDPC1')?.date) + ' ann.', tone: gdp != null && gdp >= 0 ? 'text-green' : 'text-red' },
+  ];
+
+  return (
+    <Card title="US Macro Metrics" right={<span className="text-mute text-[12px]">latest actuals</span>}>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+        {metrics.map((m) => (
+          <div key={m.k}>
+            <div className="label text-[11px]">{m.k}</div>
+            <div className={`big-num text-[24px] mt-1 ${m.tone}`}>{m.v}</div>
+            <div className="text-mute num text-[11px] mt-0.5">{m.sub}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 /* ───────── Macro Cycle Phase ring ───────── */
 export function MacroCyclePhaseCard() {
@@ -217,7 +296,7 @@ export function CrossAssetMomentumCard() {
 }
 
 export function MacroScreen() {
-  const cards = [MacroCyclePhaseCard, GlobalRegimeCard, CentralBankCard, CrossAssetMomentumCard];
+  const cards = [MacroMetricsCard, MacroCyclePhaseCard, GlobalRegimeCard, CentralBankCard, CrossAssetMomentumCard];
   return (
     <div className="space-y-4 px-4 pt-4">
       {cards.map((C, i) => (
