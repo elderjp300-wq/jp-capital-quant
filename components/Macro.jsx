@@ -8,16 +8,26 @@ import { pct, fmt, Card, Reveal } from '@/components/lib';
 
 /* ───────── US Macro Metrics (live FRED) ───────── */
 export function MacroMetricsCard() {
-  // 13 months covers YoY for the monthly indices; GDPC1 quarterly.
-  const { data } = useFred('CPIAUCSL,CPILFESL,PCEPI,UNRATE,ICSA,GDPC1', 13);
+  // 16 obs = full 12-month margin (gap-tolerant) for monthly indices; GDPC1 quarterly.
+  const { data } = useFred('CPIAUCSL,CPILFESL,PCEPI,UNRATE,ICSA,GDPC1', 16);
 
   const ser = (id) => (data && Array.isArray(data[id]) ? data[id] : []);
 
-  // Year-over-year % for an index series (latest vs ~12 periods back)
+  // Year-over-year %: find the observation closest to ~12 months before the
+  // latest date. Gap-tolerant — FRED series can skip months or be irregular.
   const yoy = (id) => {
     const a = ser(id);
-    if (a.length < 13) return null;
-    return (a[0].value / a[12].value - 1) * 100;
+    if (a.length < 2) return null;
+    const latestMs = new Date(a[0].date + 'T00:00:00').getTime();
+    const targetMs = latestMs - 365 * 24 * 3600 * 1000;
+    let best = null, bestGap = Infinity;
+    for (let i = 1; i < a.length; i++) {
+      const t = new Date(a[i].date + 'T00:00:00').getTime();
+      const gap = Math.abs(t - targetMs);
+      if (gap < bestGap) { bestGap = gap; best = a[i]; }
+    }
+    if (!best || bestGap > 45 * 24 * 3600 * 1000) return null;
+    return (a[0].value / best.value - 1) * 100;
   };
   // Latest raw value + its date
   const latest = (id) => {
